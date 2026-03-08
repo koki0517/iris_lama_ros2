@@ -2,14 +2,15 @@ from launch import LaunchDescription
 from launch_ros.actions import Node
 import launch
 import launch.actions
-import pathlib
+import os
+from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     bag_file = '/mnt/myfolder/dev2_ws/tb3bag/'
     # https://index.ros.org/doc/ros2/Tutorials/Launch-Files/Creating-Launch-Files/
     # https://answers.ros.org/question/311456/how-to-launch-a-node-with-a-parameter-in-ros2/
     # https://answers.ros.org/question/322874/ros2-what-is-different-between-declarelaunchargument-and-launchconfiguration/
-    parameters_file_path = str(pathlib.Path(__file__).parents[1]) + '/config/offline_mode.yaml'
+    parameters_file_path = os.path.join(get_package_share_directory('iris_lama_ros2'), 'config', 'offline_mode.yaml')
     print(parameters_file_path)
 
     return LaunchDescription([

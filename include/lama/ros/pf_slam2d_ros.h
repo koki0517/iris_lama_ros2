@@ -63,11 +63,11 @@
 
 namespace lama {
 
-class PFSlam2DROS {
+class PFSlam2DROS : public rclcpp::Node {
 public:
 
-    PFSlam2DROS(std::string name);
-    ~PFSlam2DROS();
+    explicit PFSlam2DROS(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+    ~PFSlam2DROS() override;
 
     void onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan);
     void onGetMap(const std::shared_ptr<nav_msgs::srv::GetMap::Request> req,
@@ -76,7 +76,6 @@ public:
 
     void printSummary();
 
-    std::shared_ptr <rclcpp::Node> node;
 private:
     bool OccupancyMsgFromOccupancyMap(nav_msgs::msg::OccupancyGrid& msg);
     bool DistanceMsgFromOccupancyMap(nav_msgs::msg::OccupancyGrid& msg);

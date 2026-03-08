@@ -63,11 +63,11 @@
 
 namespace lama {
 
-class Slam2DROS {
+class Slam2DROS : public rclcpp::Node {
 public:
 
-    Slam2DROS(std::string name);
-    ~Slam2DROS();
+    explicit Slam2DROS(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
+    ~Slam2DROS() override;
 
     void onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan);
     void onGetMap(const std::shared_ptr<nav_msgs::srv::GetMap::Request> req,
@@ -76,7 +76,6 @@ public:
 
     void printSummary();
 
-    std::shared_ptr <rclcpp::Node> node;
 private:
 
     bool initLaser(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan);

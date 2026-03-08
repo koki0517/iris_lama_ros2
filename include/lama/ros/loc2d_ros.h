@@ -65,20 +65,18 @@
 
 namespace lama {
 
-    class Loc2DROS {
+    class Loc2DROS : public rclcpp::Node {
     public:
 
-        Loc2DROS(const std::string &);
+        explicit Loc2DROS(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
-        ~Loc2DROS();
+        ~Loc2DROS() override;
 
         void topic_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr) const;
 
         void onInitialPose(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr initial_pose);
 
         void onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr laser_scan);
-
-        std::shared_ptr <rclcpp::Node> node;
 
     private:
 

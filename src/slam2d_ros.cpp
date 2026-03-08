@@ -32,104 +32,105 @@
  */
 
 #include "lama/ros/slam2d_ros.h"
+#include "rclcpp_components/register_node_macro.hpp"
 
-lama::Slam2DROS::Slam2DROS(std::string name) :
-        transform_tolerance_(0, 100000000) {
-    node = rclcpp::Node::make_shared(name);
-    ros_clock = node->get_clock();
+lama::Slam2DROS::Slam2DROS(const rclcpp::NodeOptions &options) :
+        Node("slam2d_ros", options), transform_tolerance_(0, 100000000) {
+    ros_clock = this->get_clock();
 
     // Load parameters from the server.
     double tmp;
-    node->declare_parameter("global_frame_id", "map");
-    global_frame_id_ = node->get_parameter("global_frame_id").as_string();
-    node->declare_parameter("odom_frame_id", "odom");
-    odom_frame_id_ = node->get_parameter("odom_frame_id").as_string();
-    node->declare_parameter("base_frame_id", "base_link");
-    base_frame_id_ = node->get_parameter("base_frame_id").as_string();
-    node->declare_parameter("scan_topic", "/scan");
-    scan_topic_ =  node->get_parameter("scan_topic").as_string();
-    node->declare_parameter("transform_tolerance", 0.1);
-    tmp = node->get_parameter("transform_tolerance").as_double();
+    this->declare_parameter("global_frame_id", "map");
+    global_frame_id_ = this->get_parameter("global_frame_id").as_string();
+    this->declare_parameter("odom_frame_id", "odom");
+    odom_frame_id_ = this->get_parameter("odom_frame_id").as_string();
+    this->declare_parameter("base_frame_id", "base_link");
+    base_frame_id_ = this->get_parameter("base_frame_id").as_string();
+    this->declare_parameter("scan_topic", "/scan");
+    scan_topic_ =  this->get_parameter("scan_topic").as_string();
+    this->declare_parameter("transform_tolerance", 0.1);
+    tmp = this->get_parameter("transform_tolerance").as_double();
     transform_tolerance_ = rclcpp::Duration::from_seconds(tmp);
 
     Vector2d pos;
-    node->declare_parameter("initial_pos_x", 0.0);
-    pos[0] = node->get_parameter("initial_pos_x").as_double();
-    node->declare_parameter("initial_pos_y", 0.0);
-    pos[1] = node->get_parameter("initial_pos_y").as_double();
-    node->declare_parameter("initial_pos_a", 0.0);
-    tmp = node->get_parameter("initial_pos_a").as_double();
+    this->declare_parameter("initial_pos_x", 0.0);
+    pos[0] = this->get_parameter("initial_pos_x").as_double();
+    this->declare_parameter("initial_pos_y", 0.0);
+    pos[1] = this->get_parameter("initial_pos_y").as_double();
+    this->declare_parameter("initial_pos_a", 0.0);
+    tmp = this->get_parameter("initial_pos_a").as_double();
     Pose2D prior(pos, tmp);
 
-    Slam2D::Options options;
-    node->declare_parameter("d_thresh", 0.01);
-    options.trans_thresh = node->get_parameter("d_thresh").as_double();
-    node->declare_parameter("a_thresh", 0.25);
-    options.rot_thresh = node->get_parameter("a_thresh").as_double();
-    node->declare_parameter("l2_max", 0.5);
-    options.l2_max = node->get_parameter("l2_max").as_double();
-    node->declare_parameter("truncate", 0.0);
-    options.truncated_ray = node->get_parameter("truncate").as_double();
-    node->declare_parameter("resolution", 0.05);
-    options.resolution = node->get_parameter("resolution").as_double();
-    node->declare_parameter("strategy", "gn");
-    options.strategy = node->get_parameter("strategy").as_string();
-    node->declare_parameter("use_compression", false);
-    options.use_compression = node->get_parameter("use_compression").as_bool();
-    node->declare_parameter("compression_algorithm", "lz4");
-    options.calgorithm = node->get_parameter("compression_algorithm").as_string();
-    node->declare_parameter("mrange", 16.0);
-    max_range_ = node->get_parameter("mrange").as_double();
+    Slam2D::Options slam_options;
+    this->declare_parameter("d_thresh", 0.01);
+    slam_options.trans_thresh = this->get_parameter("d_thresh").as_double();
+    this->declare_parameter("a_thresh", 0.25);
+    slam_options.rot_thresh = this->get_parameter("a_thresh").as_double();
+    this->declare_parameter("l2_max", 0.5);
+    slam_options.l2_max = this->get_parameter("l2_max").as_double();
+    this->declare_parameter("truncate", 0.0);
+    slam_options.truncated_ray = this->get_parameter("truncate").as_double();
+    this->declare_parameter("resolution", 0.05);
+    slam_options.resolution = this->get_parameter("resolution").as_double();
+    this->declare_parameter("strategy", "gn");
+    slam_options.strategy = this->get_parameter("strategy").as_string();
+    this->declare_parameter("use_compression", false);
+    slam_options.use_compression = this->get_parameter("use_compression").as_bool();
+    this->declare_parameter("compression_algorithm", "lz4");
+    slam_options.calgorithm = this->get_parameter("compression_algorithm").as_string();
+    this->declare_parameter("mrange", 16.0);
+    max_range_ = this->get_parameter("mrange").as_double();
 
     int itmp;
-    node->declare_parameter("max_iterations", 100);
-    itmp = node->get_parameter("max_iterations").as_int();
-    options.max_iter = itmp;
-    node->declare_parameter("patch_size", 32);
-    itmp = node->get_parameter("patch_size").as_int();
-    options.patch_size = itmp;
-    node->declare_parameter("cache_size", 100);
-    itmp = node->get_parameter("cache_size").as_int();
-    options.cache_size = itmp;
+    this->declare_parameter("max_iterations", 100);
+    itmp = this->get_parameter("max_iterations").as_int();
+    slam_options.max_iter = itmp;
+    this->declare_parameter("patch_size", 32);
+    itmp = this->get_parameter("patch_size").as_int();
+    slam_options.patch_size = itmp;
+    this->declare_parameter("cache_size", 100);
+    itmp = this->get_parameter("cache_size").as_int();
+    slam_options.cache_size = itmp;
 
-    node->declare_parameter("create_summary", false);
-    options.create_summary = node->get_parameter("create_summary").as_bool();
+    this->declare_parameter("create_summary", false);
+    slam_options.create_summary = this->get_parameter("create_summary").as_bool();
 
     //periodic_publish_ = nh->create_wall_timer(rclcpp::Duration(tmp), std::bind(&Slam2DROS::publishCallback, this));
     // https://docs.ros2.org/beta3/api/rclcpp/classrclcpp_1_1node_1_1Node.html
-    node->declare_parameter("map_publish_period", 5.0);
-    tmp = node->get_parameter("map_publish_period").as_double();
-    periodic_publish_ = node->create_wall_timer(
+    this->declare_parameter("map_publish_period", 5.0);
+    tmp = this->get_parameter("map_publish_period").as_double();
+    periodic_publish_ = this->create_wall_timer(
             std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::milliseconds(static_cast<int>(tmp * 1000))),
             std::bind(&Slam2DROS::publishCallback, this));
 
-    slam2d_ = std::make_shared<Slam2D>(options);
+    slam2d_ = std::make_shared<Slam2D>(slam_options);
     slam2d_->setPose(prior);
 
     // Setup TF workers ...
-    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(node->get_clock(), tf2::Duration(30));
+    tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock(), tf2::Duration(30));
     auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
-            node->get_node_base_interface(),
-            node->get_node_timers_interface());
+            this->get_node_base_interface(),
+            this->get_node_timers_interface());
     tf_buffer_->setCreateTimerInterface(timer_interface);
-    tf_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-    tfb_ = std::make_shared<tf2_ros::TransformBroadcaster>(node);
+    tf_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_, this);
+    tfb_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
 
     // Syncronized LaserScan messages with odometry transforms. This ensures that an odometry transformation
     // exists when the handler of a LaserScan message is called.
+    auto rmw_qos_profile = rclcpp::QoS(rclcpp::SystemDefaultsQoS()).keep_last(100).get_rmw_qos_profile();
     laser_scan_sub_ = std::make_shared < message_filters::Subscriber < sensor_msgs::msg::LaserScan >> (
-            node, scan_topic_, rclcpp::QoS(rclcpp::SystemDefaultsQoS()).keep_last(100).get_rmw_qos_profile());
+            this, scan_topic_, rmw_qos_profile);
     laser_scan_filter_ = std::make_shared < tf2_ros::MessageFilter < sensor_msgs::msg::LaserScan >> (
             *laser_scan_sub_, *tf_buffer_, odom_frame_id_, 100,
-                    node->get_node_logging_interface(), node->get_node_clock_interface());
+                    this->get_node_logging_interface(), this->get_node_clock_interface());
     laser_scan_filter_->registerCallback(std::bind(&Slam2DROS::onLaserScan, this, std::placeholders::_1));
 
     // Setup publishers
     // TODO latch https://github.com/ros2/ros2/issues/464
-    pose_pub_ = node->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("/pose", 2);
-    map_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("/map", 1); // latch=true
-    dist_pub_ = node->create_publisher<nav_msgs::msg::OccupancyGrid>("/distance", 1); // latch=true
+    pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("/pose", rclcpp::QoS(2));
+    map_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("/map", rclcpp::QoS(1).transient_local()); // latch=true
+    dist_pub_ = this->create_publisher<nav_msgs::msg::OccupancyGrid>("/distance", rclcpp::QoS(1).transient_local()); // latch=true
 
     ros_occ_.header.frame_id = global_frame_id_;
     ros_cost_.header.frame_id = global_frame_id_;
@@ -137,11 +138,11 @@ lama::Slam2DROS::Slam2DROS(std::string name) :
     // Setup service
     // https://index.ros.org/doc/ros2/Tutorials/Writing-A-Simple-Cpp-Service-And-Client/#write-the-service-node
     // https://answers.ros.org/question/299126/ros2-error-creating-a-service-server-as-a-member-function/
-    service = node->create_service<nav_msgs::srv::GetMap>("/dynamic_map",
+    service = this->create_service<nav_msgs::srv::GetMap>("/dynamic_map",
                                                           std::bind(&Slam2DROS::onGetMap, this, std::placeholders::_1,
                                                                     std::placeholders::_2));
 
-    RCLCPP_INFO(node->get_logger(), "Online SLAM node up and running");
+    RCLCPP_INFO(this->get_logger(), "Online SLAM node up and running");
 }
 
 lama::Slam2DROS::~Slam2DROS() {
@@ -169,7 +170,7 @@ void lama::Slam2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr la
                 rclcpp::Time(laser_scan->header.stamp), base_frame_id_);
         tf_buffer_->transform(msg_identity, msg_odom_tf, odom_frame_id_);
     } catch (tf2::TransformException &e) {
-        RCLCPP_WARN(node->get_logger(), "Failed to compute odom pose, skipping scan %s", e.what());
+        RCLCPP_WARN(this->get_logger(), "Failed to compute odom pose, skipping scan %s", e.what());
         return;
     }
     tf2::Stamped <tf2::Transform> odom_tf = lama_utils::createStampedTransform(msg_odom_tf);
@@ -232,7 +233,7 @@ void lama::Slam2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr la
                     rclcpp::Time(laser_scan->header.stamp), base_frame_id_);
             tf_buffer_->transform(msg_odom_to_map_baseFrame, msg_odom_to_map, odom_frame_id_);
         } catch (tf2::TransformException &e) {
-            RCLCPP_WARN(node->get_logger(), "Failed to subtract base to odom transform");
+            RCLCPP_WARN(this->get_logger(), "Failed to subtract base to odom transform");
             return;
         }
         tf2::Stamped <tf2::Transform> odom_to_map = lama_utils::createStampedTransform(msg_odom_to_map);
@@ -246,14 +247,14 @@ void lama::Slam2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr la
         geometry_msgs::msg::TransformStamped tmp_tf_stamped = lama_utils::createTransformStamped(
                 latest_tf_.inverse(), transform_expiration, global_frame_id_, odom_frame_id_);
         tfb_->sendTransform(tmp_tf_stamped);
-	RCLCPP_DEBUG(node->get_logger(), "Sent TF Map->Odom");
+	RCLCPP_DEBUG(this->get_logger(), "Sent TF Map->Odom");
     } else {
         // Nothing has change, therefore, republish the last transform.
         rclcpp::Time transform_expiration = rclcpp::Time(laser_scan->header.stamp) + transform_tolerance_;
         geometry_msgs::msg::TransformStamped tmp_tf_stamped = lama_utils::createTransformStamped(
                 latest_tf_.inverse(), transform_expiration, global_frame_id_, odom_frame_id_);
         tfb_->sendTransform(tmp_tf_stamped);
-	RCLCPP_DEBUG(node->get_logger(), "Nothing sent as TF Map->Odom");
+	RCLCPP_DEBUG(this->get_logger(), "Nothing sent as TF Map->Odom");
     } // end if (update)
 }
 
@@ -266,7 +267,7 @@ bool lama::Slam2DROS::initLaser(sensor_msgs::msg::LaserScan::ConstSharedPtr lase
                 rclcpp::Time(), laser_scan->header.frame_id);
         tf_buffer_->transform(msg_identity, msg_laser_origin, base_frame_id_);
     } catch (tf2::TransformException &e) {
-        RCLCPP_ERROR(node->get_logger(), "Could not find origin of %s", laser_scan->header.frame_id.c_str());
+        RCLCPP_ERROR(this->get_logger(), "Could not find origin of %s", laser_scan->header.frame_id.c_str());
         return false;
     }
     tf2::Stamped <tf2::Transform> laser_origin = lama_utils::createStampedTransform(msg_laser_origin);
@@ -283,7 +284,7 @@ bool lama::Slam2DROS::initLaser(sensor_msgs::msg::LaserScan::ConstSharedPtr lase
     int laser_index = (int) frame_to_laser_.size();  // simple ID generator :)
     frame_to_laser_[laser_scan->header.frame_id] = laser_index;
 
-    RCLCPP_INFO(node->get_logger(), "New laser configured (id=%d frame_id=%s)", laser_index,
+    RCLCPP_INFO(this->get_logger(), "New laser configured (id=%d frame_id=%s)", laser_index,
                 laser_scan->header.frame_id.c_str());
     return true;
 }
@@ -434,18 +435,20 @@ int main(int argc, char *argv[]) {
     //}
 
     rclcpp::init(argc, argv);
-    lama::Slam2DROS slam2d_ros{"slam2d_ros"};
-    slam2d_ros.node->declare_parameter("rosbag", false);
-    bool using_rosbag = slam2d_ros.node->get_parameter("rosbag").as_bool();
+    auto slam2d_ros = std::make_shared<lama::Slam2DROS>();
+    slam2d_ros->declare_parameter("rosbag", false);
+    bool using_rosbag = slam2d_ros->get_parameter("rosbag").as_bool();
     if(using_rosbag) {
-        RCLCPP_INFO(slam2d_ros.node->get_logger(), "Running SLAM in Rosbag Mode (offline)");
-        RCLCPP_INFO(slam2d_ros.node->get_logger(), "After the rosbag has finished, wait up to 'map_publish_period' for the map to be published. Save your map and use ctrl-c to quit.");
+        RCLCPP_INFO(slam2d_ros->get_logger(), "Running SLAM in Rosbag Mode (offline)");
+        RCLCPP_INFO(slam2d_ros->get_logger(), "After the rosbag has finished, wait up to 'map_publish_period' for the map to be published. Save your map and use ctrl-c to quit.");
     } else{
-        RCLCPP_INFO(slam2d_ros.node->get_logger(), "Running SLAM in Live Mode");
+        RCLCPP_INFO(slam2d_ros->get_logger(), "Running SLAM in Live Mode");
     }
 
-    rclcpp::spin(slam2d_ros.node);
+    rclcpp::spin(slam2d_ros);
     rclcpp::shutdown();
     return 0;
 }
+
+RCLCPP_COMPONENTS_REGISTER_NODE(lama::Slam2DROS)
 
