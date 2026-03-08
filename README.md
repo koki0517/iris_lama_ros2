@@ -31,46 +31,75 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-## 提供ノード
+## 各ノードの詳細と使い方
 
 ### 1. Online SLAM (`slam2d_ros`)
 逐次的にマップを生成する標準的な SLAM です。
+
+**起動方法:**
 ```bash
 ros2 launch iris_lama_ros2 slam2d_live_launch.py
 ```
 
+**主なパラメータ:**
+- `global_frame_id` (string, default: "map"): マップフレームのID。
+- `odom_frame_id` (string, default: "odom"): オドメトリフレームのID。
+- `base_frame_id` (string, default: "base_link"): ロボット本体のフレームID。
+- `scan_topic` (string, default: "/scan"): 購読するレーザースキャンのトピック名。
+- `initial_pos_x/y/a` (double, default: 0.0): 起動時の初期位置（x, y）と向き（a: 角度[rad]）。
+- `d_thresh` (double, default: 0.01): 地図更新を行う最小移動距離 [m]。
+- `a_thresh` (double, default: 0.25): 地図更新を行う最小回転角度 [rad]。
+- `resolution` (double, default: 0.05): マップの解像度 [m/cell]。
+- `map_publish_period` (double, default: 5.0): マップ（OccupancyGrid）を配信する周期 [秒]。
+- `mrange` (double, default: 16.0): レーザースキャンの最大有効距離 [m]。
+- `use_compression` (bool, default: false): マップデータの圧縮を行うかどうか。
+
+---
+
 ### 2. Particle Filter SLAM (`pf_slam2d_ros`)
-パーティクルフィルタを用いた SLAM です。
+パーティクルフィルタを用いた、より堅牢な SLAM です。
+
+**起動方法:**
 ```bash
 ros2 launch iris_lama_ros2 pf_slam2d_live_launch.py
 ```
 
+**SLAM固有のパラメータ:**
+- `particles` (int, default: 30): 使用するパーティクル数。
+- `threads` (int, default: -1): 使用するスレッド数（-1: 無効, 0: 自動）。
+- `d_thresh` (double, default: 0.5): PF版の移動距離閾値（標準版より大きめを推奨）。
+- `srr / str / stt / srt` (double): オドメトリの誤差モデルパラメータ。
+- `sigma` (double, default: 0.05): 計測の標準偏差。
+- `lgain` (double, default: 3.0): 尤度計算のゲイン。
+
+---
+
 ### 3. 2D Localization (`loc2d_ros`)
-既存のマップ（`/map` サービス経由）を利用した自己位置推定です。
+既存の地図を使用して自己位置推定のみを行います。`/map` サービスを提供するノード（`nav2_map_server`など）が必要です。
+
+**起動方法:**
 ```bash
 ros2 launch iris_lama_ros2 loc2d_launch.py
 ```
-※起動後、RViz2 の "2D Pose Estimate" を使用して初期位置を与えてください。現時点ではグローバル自己位置推定（自動初期化）は未実装です。
 
-## 主なパラメータ
-共通の主要パラメータ：
-- `global_frame_id`: マップフレーム (default: "map")
-- `odom_frame_id`: オドメトリフレーム (default: "odom")
-- `base_frame_id`: ロボットのベースフレーム (default: "base_link")
-- `scan_topic`: レーザースキャンデータのトピック (default: "/scan")
-- `resolution`: マップの解像度 [m] (default: 0.05)
-- `d_thresh`: 更新を行う移動距離の閾値 [m] (SLAM: 0.01, PF: 0.5)
-- `a_thresh`: 更新を行う回転角度の閾値 [rad] (SLAM: 0.25, PF: 0.25)
-- `map_publish_period`: マップを配信する周期 [秒] (default: 5.0)
+**使い方と初期位置設定:**
+1. ノードを起動すると、パラメータ `initial_pos_x/y/a` で指定された位置（デフォルトは `0,0,0`）で推定を開始します。
+2. 実際のロボットの位置がズレている場合は、**RViz2 の "2D Pose Estimate" ボタン** を使用して地図上の正しい位置と向きを指定してください。
+3. 指定された瞬間、内部の推定ポーズがリセットされ、新しい位置から追従を開始します。
+
+---
+
+## パラメータ設定のヒント
+- **初期位置の固定**: ロボットの開始位置が常に決まっている場合は、YAMLファイルで `initial_pos_x/y/a` を設定しておくと便利です。
+- **CPU負荷の調整**: PF SLAM が重い場合は `particles` 数を減らすか、`threads` を CPU 核心数に合わせて設定してください。
+- **地図の鮮明度**: `resolution` を小さくすると詳細な地図になりますが、メモリ消費と計算負荷が増加します。
 
 ## オフラインマッピング (rosbag)
-`ros2 bag` を再生しながら高速に地図を生成することも可能です。
-`launch/slam2d_offline_launch.py` 等の `bag_file` パスを編集して実行してください。
+`ros2 bag` を再生しながら地図を生成します。`launch/*_offline_launch.py` 内の `bag_file` パスを書き換えて使用してください。
 ```bash
 ros2 launch iris_lama_ros2 slam2d_offline_launch.py
 ```
 
 ---
 (C) 2019 Eurico Pedrosa, University of Aveiro.
-Ported to ROS 2 by David Simoes, University of Aveiro.
 Updated for ROS 2 Humble by Contributors.
