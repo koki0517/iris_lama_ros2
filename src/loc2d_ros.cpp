@@ -249,6 +249,20 @@ void lama::Loc2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr las
         tfb_->sendTransform(tmp_tf_stamped);
     } // end if (update)
 
+    // 推定値のパブリッシュを追加
+    Pose2D current_pose = loc2d_->getPose();
+    geometry_msgs::msg::PoseWithCovarianceStamped pose_msg;
+    pose_msg.header.stamp = laser_scan->header.stamp;
+    pose_msg.header.frame_id = global_frame_id_;
+    pose_msg.pose.pose.position.x = current_pose.x();
+    pose_msg.pose.pose.position.y = current_pose.y();
+    pose_msg.pose.pose.position.z = 0.0;
+
+    tf2::Quaternion q;
+    q.setRPY(0, 0, current_pose.rotation());
+    pose_msg.pose.pose.orientation = tf2::toMsg(q);
+
+    pose_pub_->publish(pose_msg);
 }
 
 void lama::Loc2DROS::InitLoc2DFromOccupancyGridMsg(const nav_msgs::msg::OccupancyGrid &msg) {

@@ -31,74 +31,66 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-## 各ノードの詳細と使い方
+## 各ノードの詳細とパラメータ
 
-### 1. Online SLAM (`slam2d_ros`)
-逐次的にマップを生成する標準的な SLAM です。
+### 1. Online SLAM (`slam2d_ros`) / PF SLAM (`pf_slam2d_ros`)
+逐次的にマップを生成する SLAM ノードです。
 
 **起動方法:**
 ```bash
+# 標準版 SLAM
 ros2 launch iris_lama_ros2 slam2d_live_launch.py
-```
-
-**主なパラメータ:**
-- `global_frame_id` (string, default: "map"): マップフレームのID。
-- `odom_frame_id` (string, default: "odom"): オドメトリフレームのID。
-- `base_frame_id` (string, default: "base_link"): ロボット本体のフレームID。
-- `scan_topic` (string, default: "/scan"): 購読するレーザースキャンのトピック名。
-- `initial_pos_x/y/a` (double, default: 0.0): 起動時の初期位置（x, y）と向き（a: 角度[rad]）。
-- `d_thresh` (double, default: 0.01): 地図更新を行う最小移動距離 [m]。
-- `a_thresh` (double, default: 0.25): 地図更新を行う最小回転角度 [rad]。
-- `resolution` (double, default: 0.05): マップの解像度 [m/cell]。
-- `map_publish_period` (double, default: 5.0): マップ（OccupancyGrid）を配信する周期 [秒]。
-- `mrange` (double, default: 16.0): レーザースキャンの最大有効距離 [m]。
-- `use_compression` (bool, default: false): マップデータの圧縮を行うかどうか。
-
----
-
-### 2. Particle Filter SLAM (`pf_slam2d_ros`)
-パーティクルフィルタを用いた、より堅牢な SLAM です。
-
-**起動方法:**
-```bash
+# パーティクルフィルタ版 SLAM
 ros2 launch iris_lama_ros2 pf_slam2d_live_launch.py
 ```
 
-**SLAM固有のパラメータ:**
-- `particles` (int, default: 30): 使用するパーティクル数。
-- `threads` (int, default: -1): 使用するスレッド数（-1: 無効, 0: 自動）。
-- `d_thresh` (double, default: 0.5): PF版の移動距離閾値（標準版より大きめを推奨）。
-- `srr / str / stt / srt` (double): オドメトリの誤差モデルパラメータ。
-- `sigma` (double, default: 0.05): 計測の標準偏差。
-- `lgain` (double, default: 3.0): 尤度計算のゲイン。
+**共通主要パラメータ:**
+- `global_frame_id` (string, default: "map"): マップフレームID。
+- `odom_frame_id` (string, default: "odom"): オドメトリフレームID。
+- `base_frame_id` (string, default: "base_link"): ロボット本体のフレームID。
+- `scan_topic` (string, default: "/scan"): 購読するレーザースキャントピック。
+- `initial_pos_x/y/a` (double, default: 0.0): 起動時の初期位置（x, y [m]）と向き（a [rad]）。
+- `resolution` (double, default: 0.05): 生成するマップの解像度 [m/cell]。
+- `d_thresh` (double): 地図更新を行う最小移動距離 [m]。 (標準版: 0.01, PF版: 0.5)
+- `a_thresh` (double, default: 0.25): 地図更新を行う最小回転角度 [rad]。
+- `map_publish_period` (double, default: 5.0): `/map` トピックに最新地図を配信する周期 [秒]。
+- `mrange` (double, default: 16.0): レーザースキャンの最大有効距離 [m]。
+
+**PF SLAM 固有パラメータ:**
+- `particles` (int, default: 30): パーティクル数。
+- `threads` (int, default: -1): 使用スレッド数（-1: 無効, 0: 自動設定）。
 
 ---
 
-### 3. 2D Localization (`loc2d_ros`)
-既存の地図を使用して自己位置推定のみを行います。`/map` サービスを提供するノード（`nav2_map_server`など）が必要です。
+### 2. 2D Localization (`loc2d_ros`)
+既存の地図を使用して自己位置推定（map -> odom の TF 配信）を行います。
 
 **起動方法:**
 ```bash
 ros2 launch iris_lama_ros2 loc2d_launch.py
 ```
 
-**使い方と初期位置設定:**
-1. ノードを起動すると、パラメータ `initial_pos_x/y/a` で指定された位置（デフォルトは `0,0,0`）で推定を開始します。
-2. 実際のロボットの位置がズレている場合は、**RViz2 の "2D Pose Estimate" ボタン** を使用して地図上の正しい位置と向きを指定してください。
-3. 指定された瞬間、内部の推定ポーズがリセットされ、新しい位置から追従を開始します。
+**自己位置推定の仕組み:**
+- 起動直後、パラメータ `initial_pos_x/y/a` で指定された位置を起点として推定を開始します。
+- 実際のロボットの位置がズレている場合は、**RViz2 の "2D Pose Estimate" ボタン** を使用して地図上の正しい位置を指定してください。トピック `/initialpose` を受信すると、推定状態がその位置へリセットされます。
+- 推定が動作するためには、外部（`nav2_map_server` など）が `/map` サービスを提供している必要があります。
+
+**主要パラメータ:**
+- `global_frame_id / odom_frame_id / base_frame_id`: SLAMと共通。
+- `scan_topic`: 購読するレーザースキャントピック。
+- `initial_pos_x/y/a` (double, default: 0.0): 自己位置推定の開始位置。
+- `d_thresh` (double, default: 0.01): 自己位置の再計算を行う移動距離しきい値 [m]。
+- `a_thresh` (double, default: 0.2): 自己位置の再計算を行う回転角度しきい値 [rad]。
+- `l2_max` (double, default: 0.5): ユークリッド距離マップで使用する最大距離 [m]。
+- `strategy` (string, default: "gn"): スキャンマッチングの最適化戦略（"gn": Gauss-Newton, "lm": Levenberg-Marquardt）。
+- `transform_tolerance` (double, default: 0.1): 配信する TF の有効期限（タイムスタンプへの加算値）[秒]。
 
 ---
 
-## パラメータ設定のヒント
-- **初期位置の固定**: ロボットの開始位置が常に決まっている場合は、YAMLファイルで `initial_pos_x/y/a` を設定しておくと便利です。
-- **CPU負荷の調整**: PF SLAM が重い場合は `particles` 数を減らすか、`threads` を CPU 核心数に合わせて設定してください。
-- **地図の鮮明度**: `resolution` を小さくすると詳細な地図になりますが、メモリ消費と計算負荷が増加します。
-
-## オフラインマッピング (rosbag)
-`ros2 bag` を再生しながら地図を生成します。`launch/*_offline_launch.py` 内の `bag_file` パスを書き換えて使用してください。
-```bash
-ros2 launch iris_lama_ros2 slam2d_offline_launch.py
-```
+## 運用のアドバイス
+- **TFツリー**: 本ノードは `map -> odom` の変換を配信します。オドメトリ源（`odom -> base_link`）は別途必要です。
+- **LiDARのフレーム名**: LiDARのフレーム名（`laser_link` など）は、受信する `/scan` メッセージのヘッダから自動取得されます。ベースフレームとの位置関係は TF から自動解決されるため、個別のパラメータ設定は不要です。
+- **計算負荷**: 地図の解像度 (`resolution`) を上げたり、PFのパーティクル数 (`particles`) を増やすと精度が上がりますが、CPU負荷が増大します。
 
 ---
 (C) 2019 Eurico Pedrosa, University of Aveiro.
