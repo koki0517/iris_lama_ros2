@@ -121,7 +121,6 @@ namespace lama {
 
         // == Inner state ==
         std::shared_ptr <Loc2D> loc2d_;
-        //Pose2D odom_;
     };
 
 } /* lama */

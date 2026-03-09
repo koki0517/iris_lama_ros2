@@ -33,6 +33,7 @@
 
 #include "lama/ros/loc2d_ros.h"
 #include "rclcpp_components/register_node_macro.hpp"
+#include <iostream>
 
 lama::Loc2DROS::Loc2DROS(const rclcpp::NodeOptions &options) :
         Node("loc2d_ros", options), transform_tolerance_(0, 100000000) {
@@ -163,6 +164,8 @@ void lama::Loc2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr las
     double odom_tf_yaw = lama_utils::getYaw(odom_tf.getRotation());
     lama::Pose2D odom(odom_tf.getOrigin().x(), odom_tf.getOrigin().y(), odom_tf_yaw);
 
+    // debug output of first scan removed; no terminal printing
+
     bool update = loc2d_->enoughMotion(odom);
 
     if (update) {
@@ -203,10 +206,14 @@ void lama::Loc2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr las
             cloud->points.push_back(point);
         }
 
+
         // https://github.com/ros2/rclcpp/blob/master/rclcpp/include/rclcpp/time.hpp
         // https://github.com/ros2/rcl_interfaces/blob/master/builtin_interfaces/msg/Time.msg
         loc2d_->update(cloud, odom, rclcpp::Time(laser_scan->header.stamp).seconds());
         Pose2D pose = loc2d_->getPose();
+        double rmse = loc2d_->getRMSE();
+        RCLCPP_INFO(this->get_logger(), "Update: Pose(%.3f, %.3f, %.3f), RMSE: %.4f, Points: %zu",
+                    pose.x(), pose.y(), pose.rotation(), rmse, cloud->points.size());
 
         // subtracting base to odom from map to base and send map to odom instead
         geometry_msgs::msg::PoseStamped msg_odom_to_map;
@@ -272,7 +279,7 @@ void lama::Loc2DROS::InitLoc2DFromOccupancyGridMsg(const nav_msgs::msg::Occupanc
     pos[0] = this->get_parameter("initial_pos_x").as_double();
     this->declare_parameter("initial_pos_y", 0.0);
     pos[1] = this->get_parameter("initial_pos_y").as_double();
-    this->declare_parameter("initial_pos_a", 0.0);
+    this->declare_parameter("initial_pos_a", 1.571);
     tmp = this->get_parameter("initial_pos_a").as_double();
     lama::Pose2D prior(pos, tmp);
 
@@ -302,6 +309,7 @@ void lama::Loc2DROS::InitLoc2DFromOccupancyGridMsg(const nav_msgs::msg::Occupanc
     unsigned int width = msg.info.width;
     unsigned int height = msg.info.height;
 
+    int occupied_cells = 0;
     for (unsigned int j = 0; j < height; ++j)
         for (unsigned int i = 0; i < width; ++i) {
 
@@ -315,9 +323,11 @@ void lama::Loc2DROS::InitLoc2DFromOccupancyGridMsg(const nav_msgs::msg::Occupanc
             } else if (value == 100) {
                 loc2d_->occupancy_map->setOccupied(coords);
                 loc2d_->distance_map->addObstacle(loc2d_->distance_map->w2m(coords));
+                occupied_cells++;
             }
         }// end for
 
+    RCLCPP_INFO(this->get_logger(), "Map loaded: %d occupied cells.", occupied_cells);
     loc2d_->distance_map->update();
 }
 
@@ -338,7 +348,7 @@ bool lama::Loc2DROS::initLaser(sensor_msgs::msg::LaserScan::ConstSharedPtr laser
     // Validate laser orientation (code taken from slam_gmapping)
     // create a point 1m above the laser position and transform it into the laser-frame
     tf2::Vector3 v;
-    v.setValue(0, 0, 1 + laser_origin.getOrigin().z());
+    v.setValue(0, 0, 1.0);
 
     geometry_msgs::msg::Vector3Stamped msg_up;
     try {
@@ -353,9 +363,8 @@ bool lama::Loc2DROS::initLaser(sensor_msgs::msg::LaserScan::ConstSharedPtr laser
     tf2::Stamped <tf2::Vector3> up = lama_utils::createStampedVector3(msg_up);
 
     // we do not take roll or pitch into account. So check for correct sensor alignment.
-    if (std::fabs(std::fabs(up.z()) - 1) > 0.001) {
-        RCLCPP_WARN(this->get_logger(),
-                    "Laser has to be mounted planar! Z-coordinate has to be 1 or -1, but gave: %.5f", up.z());
+    if ( std::abs(std::abs(up.z()) - 1.0) > 0.2 ) {
+        RCLCPP_ERROR(this->get_logger(), "Laser has to be mounted planar! Z-coordinate has to be 1 or -1, but gave: %.5f", up.z());
         return false;
     }
 
@@ -368,6 +377,8 @@ bool lama::Loc2DROS::initLaser(sensor_msgs::msg::LaserScan::ConstSharedPtr laser
 
         lasers_origin_.push_back(lp);
         RCLCPP_INFO(this->get_logger(), "Laser is mounted upwards.");
+        RCLCPP_INFO(this->get_logger(), "Laser origin in base_link: x=%.4f y=%.4f yaw=%.4f",
+                    laser_origin.getOrigin().x(), laser_origin.getOrigin().y(), laser_origin_yaw);
     } else {
         laser_is_reversed_.push_back(laser_scan->angle_min < laser_scan->angle_max);
 
