@@ -269,6 +269,31 @@ void lama::Loc2DROS::onLaserScan(sensor_msgs::msg::LaserScan::ConstSharedPtr las
     q.setRPY(0, 0, current_pose.rotation());
     pose_msg.pose.pose.orientation = tf2::toMsg(q);
 
+    // loc2dから計算された共分散行列を取得
+    Eigen::Matrix3d covariance = loc2d_->getCovar();
+
+    pose_msg.pose.covariance[0]  = covariance(0, 0); // x, x
+    pose_msg.pose.covariance[1]  = covariance(0, 1); // x, y
+    pose_msg.pose.covariance[5]  = covariance(0, 2); // x, yaw
+    
+    pose_msg.pose.covariance[6]  = covariance(1, 0); // y, x
+    pose_msg.pose.covariance[7]  = covariance(1, 1); // y, y
+    pose_msg.pose.covariance[11] = covariance(1, 2); // y, yaw
+    
+    pose_msg.pose.covariance[30] = covariance(2, 0); // yaw, x
+    pose_msg.pose.covariance[31] = covariance(2, 1); // yaw, y
+    pose_msg.pose.covariance[35] = covariance(2, 2); // yaw, yaw
+
+    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        "Covariance diagonals: x:%.6f, y:%.6f, yaw:%.6f (raw: %.6f, %.6f, %.6f)", 
+        pose_msg.pose.covariance[0], pose_msg.pose.covariance[7], pose_msg.pose.covariance[35],
+        covariance(0,0), covariance(1,1), covariance(2,2));
+
+    // 2D推定のため、z, roll, pitchには大きな分散(信用できない)を設定
+    pose_msg.pose.covariance[14] = 1000.0; // z の分散
+    pose_msg.pose.covariance[21] = 1000.0; // roll の分散
+    pose_msg.pose.covariance[28] = 1000.0; // pitch の分散
+
     pose_pub_->publish(pose_msg);
 }
 
